@@ -3359,25 +3359,35 @@
         // -------------------------------------------------------------
         function runPreloader() {
             return new Promise(resolve => {
-                const tl = gsap.timeline({ onComplete: resolve });
                 const countVal = document.getElementById('pre-count-val');
+                const preloader = document.getElementById('preloader');
                 
-                // Animate count from 0 to 100
-                const countObj = { val: 0 };
-                tl.to(countObj, {
-                    val: 100,
-                    duration: 2.5,
-                    ease: "power2.inOut",
-                    onUpdate: () => {
-                        countVal.innerText = Math.floor(countObj.val).toString().padStart(3, '0');
-                    }
-                }, 0);
+                // Animate counter 0 → 100
+                let count = 0;
+                const countInterval = setInterval(() => {
+                    count += 2;
+                    if (countVal) countVal.innerText = Math.min(count, 100).toString().padStart(3, '0');
+                    if (count >= 100) clearInterval(countInterval);
+                }, 40); // ~2 seconds total
 
-                tl.to('.clapperboard', { opacity: 1, y: 0, filter: 'blur(0px) brightness(1)', duration: 1.5, ease: 'power2.out' }, 0.5)
-                  .to('.load-bar', { width: '100%', duration: 2.5, ease: 'none' }, 0)
-                  .to('.clapper-arm', { rotation: 0, duration: 0.15, ease: "expo.in" })
-                  .to('#preloader', { opacity: 0, duration: 1.5, ease: 'power2.inOut', pointerEvents: 'none' }, "+=0.3")
-                  .set('#preloader', { display: 'none' });
+                // Clapperboard & load bar (safe — won't crash if missing)
+                gsap.to('.clapperboard', { opacity: 1, y: 0, filter: 'blur(0px) brightness(1)', duration: 1.2, ease: 'power2.out', delay: 0.3 });
+                gsap.to('.load-bar', { width: '100%', duration: 2.0, ease: 'none' });
+
+                // Always fade out after 2.5s — no matter what
+                setTimeout(() => {
+                    clearInterval(countInterval);
+                    if (countVal) countVal.innerText = '100';
+                    gsap.to(preloader, {
+                        opacity: 0,
+                        duration: 0.8,
+                        ease: 'power2.inOut',
+                        onComplete: () => {
+                            preloader.style.display = 'none';
+                            resolve();
+                        }
+                    });
+                }, 2500);
             });
         }
 

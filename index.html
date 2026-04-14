@@ -185,6 +185,7 @@
             display: block;
         }
 
+        .preloader-flash { position: fixed; inset: 0; background: white; opacity: 0; pointer-events: none; z-index: 10011; display: none; }
 
         /* Navigation */
         header { 
@@ -1217,64 +1218,12 @@
                 <span id="pre-count-val">000</span>%
                 <span class="pre-counter-bracket">]</span>
             </div>
-            
             <div class="pre-word">
                 <span class="pre-word-ghost">LIMITLESS</span>
-                <span class="pre-word-fill" id="pre-word-fill">LIMITLESS</span>
             </div>
         </div>
-
-        <!-- Required by runPreloader GSAP: .clapperboard, .clapper-arm, .load-bar -->
-        <div class="clapperboard" style="position:absolute;bottom:60px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;filter:blur(10px) brightness(0.5);width:clamp(200px,30vw,360px);pointer-events:none;">
-            <div class="clapper-top" style="background:#111;border-radius:6px 6px 0 0;height:40px;display:flex;align-items:center;padding:0 12px;overflow:hidden;">
-                <div class="clapper-arm" style="width:100%;height:6px;background:repeating-linear-gradient(90deg,#fff 0,#fff 12px,#222 12px,#222 24px);border-radius:3px;transform-origin:left center;transform:rotate(-18deg);"></div>
-            </div>
-            <div class="clapper-bottom" style="background:#1a1a1a;border-radius:0 0 6px 6px;padding:10px 12px 12px;">
-                <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-                    <span class="font-counter" style="font-size:9px;letter-spacing:.2em;color:rgba(255,255,255,.5);">LIMITLESS PRODUCTIONS</span>
-                    <span class="font-counter" style="font-size:9px;letter-spacing:.2em;color:rgba(255,255,255,.3);">SCENE 2026 / TAKE 01</span>
-                </div>
-                <div style="width:100%;height:2px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden;">
-                    <div class="load-bar" style="width:0%;height:100%;background:var(--scene-accent,#E8A832);border-radius:2px;"></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="preloader-flash"></div>
     </div>
-
-    <!-- INLINE PRELOADER CONTROLLER: runs independently, guarantees page always reveals -->
-    <script>
-    (function() {
-        var preloader = document.getElementById('preloader');
-        var countEl   = document.getElementById('pre-count-val');
-        var fillEl    = document.getElementById('pre-word-fill');
-        var count = 0;
-
-        // Count 000 → 100 over ~2.2 seconds
-        var ci = setInterval(function() {
-            count += 2;
-            var v = Math.min(count, 100);
-            if (countEl) countEl.textContent = String(v).padStart(3, '0');
-            if (fillEl) fillEl.style.clipPath = 'inset(0 ' + (100 - v) + '% 0 0)';
-            if (v >= 100) clearInterval(ci);
-        }, 44);
-
-        // Hard dismiss after 3 seconds: preloader fades out no matter what
-        setTimeout(function() {
-            clearInterval(ci);
-            if (countEl) countEl.textContent = '100';
-            if (!preloader) return;
-            preloader.style.transition = 'opacity 0.8s ease';
-            preloader.style.opacity = '0';
-            preloader.style.pointerEvents = 'none';
-            setTimeout(function() {
-                preloader.style.display = 'none';
-            }, 850);
-        }, 3000);
-    })();
-    </script>
-
+    
 
     <header>
         <a href="#" class="logo nav-trigger" data-target="hero">
@@ -2770,12 +2719,10 @@
     <script type="module">
         import * as THREE from 'three';
         import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+
         import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
         import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
         import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-
-        // Import optimized work section
-        import { initOptimizedWorkSpine, VideoManager } from './work-section-optimized.js';
 
         // -------------------------------------------------------------
         // CONFIG & STATE
@@ -2784,7 +2731,6 @@
             goldenWarmth:  { accent: '#FFBE2B', bg: '#090704', cursorColor: 0xFFD66A, glowColor: 'rgba(255,190,43,0.45)', grain: 0.04, gradientBottom: 'rgba(3,3,4,0.8)',   textColor: '#F4F0E8' },
             darkEditorial: { accent: '#CC2200', bg: '#080404', cursorColor: 0xFF2200, glowColor: 'rgba(180,20,0,0.6)',  grain: 0.09, gradientBottom: 'rgba(3,3,4,0.8)',   textColor: '#F4F0E8' },
             pureWhite:     { accent: '#FFFFFF', bg: '#06040C', cursorColor: 0xFFFFFF, glowColor: 'rgba(255,255,255,0.55)', grain: 0.02, gradientBottom: 'rgba(3,3,4,0.8)', textColor: '#8b0000' },
-            cinema:        { accent: '#E8A832', bg: '#050507', cursorColor: 0xE8A832, glowColor: 'rgba(232,168,50,0.3)',   grain: 0.06, gradientBottom: 'rgba(5,5,7,0.9)',   textColor: '#F4F0E8' },
         };
 
         const SHOWREEL = [
@@ -3391,35 +3337,22 @@
         // -------------------------------------------------------------
         function runPreloader() {
             return new Promise(resolve => {
+                const tl = gsap.timeline({ onComplete: resolve });
                 const countVal = document.getElementById('pre-count-val');
-                const preloader = document.getElementById('preloader');
                 
-                // Animate counter 0 → 100
-                let count = 0;
-                const countInterval = setInterval(() => {
-                    count += 2;
-                    if (countVal) countVal.innerText = Math.min(count, 100).toString().padStart(3, '0');
-                    if (count >= 100) clearInterval(countInterval);
-                }, 40); // ~2 seconds total
-
-                // Clapperboard & load bar (safe — won't crash if missing)
-                gsap.to('.clapperboard', { opacity: 1, y: 0, filter: 'blur(0px) brightness(1)', duration: 1.2, ease: 'power2.out', delay: 0.3 });
-                gsap.to('.load-bar', { width: '100%', duration: 2.0, ease: 'none' });
-
-                // Always fade out after 2.5s — no matter what
-                setTimeout(() => {
-                    clearInterval(countInterval);
-                    if (countVal) countVal.innerText = '100';
-                    gsap.to(preloader, {
-                        opacity: 0,
-                        duration: 0.8,
-                        ease: 'power2.inOut',
-                        onComplete: () => {
-                            preloader.style.display = 'none';
-                            resolve();
-                        }
-                    });
-                }, 2500);
+                let counter = { val: 0 };
+                
+                tl.to(counter, {
+                    val: 100,
+                    duration: 2.5,
+                    ease: "power2.inOut",
+                    onUpdate: () => {
+                        const v = Math.floor(counter.val);
+                        if(countVal) countVal.innerText = v.toString().padStart(3, '0');
+                    }
+                })
+                .to('#preloader', { opacity: 0, duration: 1.2, ease: 'power2.inOut' })
+                .set('#preloader', { display: 'none' });
             });
         }
 
@@ -3864,13 +3797,443 @@
         }
 
         // -------------------------------------------------------------
-        // WORK SPINE - REPLACED WITH OPTIMIZED VERSION
+        // WORK SPINE (Video Gateway -> Horizontal Scroll -> Emptying Phase)
         // -------------------------------------------------------------
-        // The old initWorkSpine() function has been replaced with initOptimizedWorkSpine()
-        // from work-section-optimized.js for better performance.
-        // Old function removed to avoid conflicts.
         let spineScrollTrigger;
+        
+        function initWorkSpine() {
+            const track = document.getElementById('spine-track');
             
+            // Initial State setup for the Video Player effect
+            gsap.set('.work-content', { opacity: 0, scale: 1.05 });
+
+            // Master Timeline for Gateway Expansion + Horizontal Scroll + Exit Sequence
+            spineScrollTrigger = gsap.timeline({
+                scrollTrigger: {
+                    trigger: "#work",
+                    start: "top top",
+                    end: "+=25000", // Increased scroll distance significantly to fit all chapters
+                    pin: true,
+                    scrub: 1,
+                    invalidateOnRefresh: true,
+                    id: "workSpine",
+                    onUpdate: function(self) {
+                        const prog = self.progress;
+                        
+                        // Snap the mood back if closed or scrolled completely off
+                        if (prog < 0.10) {
+                            if (voidStage._lastMoodKey !== 'goldenWarmth') voidStage.setMood('goldenWarmth');
+                            return;
+                        }
+
+                        // Determine the active category based on scroll position - ONLY target spine cards
+                        const activeCards = document.querySelectorAll('.spine-track .project-card:not([style*="display: none"]), .spine-track .category-title-card');
+                        if (activeCards.length === 0) return;
+                        
+                        const cx = window.innerWidth / 2;
+                        let closest = activeCards[0];
+                        let minDist = Infinity;
+                        
+                        activeCards.forEach(card => {
+                            const rect = card.getBoundingClientRect();
+                            // Shift the center calculation slightly left so the category lights up as it approaches
+                            const dist = Math.abs((cx * 0.8) - (rect.left + rect.width/2));
+                            if(dist < minDist) { minDist = dist; closest = card; }
+                            
+                            const norm = Math.max(0, 1 - dist / (window.innerWidth * 0.5));
+                            const cardCx = rect.left + rect.width / 2;
+                            const xOffset = cardCx - cx;
+                            const rotationY = (xOffset / cx) * -20; 
+
+                            // Project Cards specific logic
+                            if (card.classList.contains('project-card')) {
+                                gsap.set(card, { 
+                                    scale: 0.85 + norm * 0.15, 
+                                    filter: `brightness(${0.3 + norm * 0.7})`,
+                                    rotateY: rotationY,
+                                    transformPerspective: 1500
+                                });
+                                
+                                const media = card.querySelector('.card-media img, .card-media video');
+                                if (media) {
+                                    const pan = xOffset * 0.15; 
+                                    const mScale = 1.3 - (norm * 0.3); 
+                                    
+                                    gsap.set(media, {
+                                        x: pan,
+                                        scale: mScale,
+                                        transformOrigin: "center center",
+                                        force3D: true
+                                    });
+                                }
+                                
+                                const info = card.querySelector('.card-info');
+                                if(info) {
+                                    gsap.set(info, { x: xOffset * 0.08 });
+                                }
+                            } else if (card.classList.contains('category-title-card')) {
+                                // Category titles follow same scaling/brightness for symmetry
+                                gsap.set(card, { 
+                                    scale: 0.85 + norm * 0.15, 
+                                    filter: `brightness(${0.4 + norm * 0.6})`,
+                                    rotateY: rotationY * 0.5, // Slightly less aggressive tilt for text
+                                    transformPerspective: 1500
+                                });
+                            }
+                        });
+
+                        // Update Mood
+                        if(prog < 0.9 && closest && closest.dataset.mood) {
+                            voidStage.setMood(closest.dataset.mood);
+                        }
+
+                        // Highlight correct Navigation Filter Button
+                        let activeFilter = 'ALL';
+                        if (prog > 0.1) {
+                            // Find the last category title card that has passed the center
+                            const catCards = document.querySelectorAll('.category-title-card');
+                            catCards.forEach(cat => {
+                                const rect = cat.getBoundingClientRect();
+                                if (rect.left < window.innerWidth * 0.7) {
+                                    activeFilter = cat.dataset.category;
+                                }
+                            });
+                        }
+                        
+                        // Update Dropdown UI
+                        const activeTextEl = document.querySelector('.active-chapter-text');
+                        const displayFilter = activeFilter === 'ALL' ? 'ALL CHAPTERS' : activeFilter;
+                        if (activeTextEl && activeTextEl.innerText !== displayFilter) {
+                            activeTextEl.innerText = displayFilter;
+                        }
+
+                        const filterBtns = document.querySelectorAll('.filter-btn');
+                        filterBtns.forEach(b => {
+                            if (b.textContent.trim().toUpperCase() === activeFilter) {
+                                b.classList.add('active', 'text-[var(--scene-accent)]');
+                                b.classList.remove('text-white/60');
+                            } else {
+                                b.classList.remove('active', 'text-[var(--scene-accent)]');
+                                b.classList.add('text-white/60');
+                            }
+                        });
+                    }
+                }
+            });
+
+            // PHASE 1 (Duration 0 -> 1): Fade in full background gradient smoothly for seamless entry
+            spineScrollTrigger.to('#work-gradient-container', { opacity: 0.8, ease: 'power2.inOut', duration: 1 }, 0);
+            spineScrollTrigger.to('.gateway-bg-img', { scale: 1.1, ease: 'power2.inOut', duration: 1 }, 0);
+            spineScrollTrigger.to('.gateway-ui', { opacity: 0, scale: 1.1, ease: 'power2.in', duration: 0.6 }, 0);
+            spineScrollTrigger.to('.work-content', { opacity: 1, scale: 1, ease: 'power2.out', duration: 0.8 }, 0.2);
+            spineScrollTrigger.to('.archive-back-btn', { opacity: 1, pointerEvents: 'auto', duration: 0.5 }, 0.5);
+            spineScrollTrigger.set('.work-content', { pointerEvents: 'auto' }, 0.8);
+
+            // PHASE 2 (Duration 1 -> 5): Horizontal Scrolling
+            // We use -(track.scrollWidth - window.innerWidth / 2) to ensure the very last spacer pushes the cards completely off screen
+            spineScrollTrigger.to(track, { x: () => -(track.scrollWidth - window.innerWidth / 2), ease: "none", duration: 4 }, 1);
+
+            // PHASE 3 (Duration 4.2 -> 5): Clear the Stage & fade out gradient
+            spineScrollTrigger.to('#work-gradient-container', { opacity: 0, ease: 'power2.inOut', duration: 0.8 }, 4.2);
+            spineScrollTrigger.to('.work-header, .archive-back-btn, .work-glow', { opacity: 0, ease: 'power2.inOut', duration: 0.8 }, 4.2);
+            const isDesktop = window.innerWidth > 768;
+            spineScrollTrigger.to('.gateway-bg-img', { scale: 1, ease: 'power2.inOut', duration: 1 }, 4);
+            spineScrollTrigger.to('.work-content', { opacity: 0, scale: 0.9, ease: 'power2.in', duration: 0.6 }, 4);
+            spineScrollTrigger.set('.work-content', { pointerEvents: 'none' }, 4);
+            spineScrollTrigger.to('.gateway-ui', { opacity: 1, scale: 1, ease: 'power2.out', duration: 0.8 }, 4.2);
+
+            // Click Interaction to fast-forward into the work section from the closed gateway state
+            const gatewayWindow = document.querySelector('.gateway-window');
+            gatewayWindow.addEventListener('click', () => {
+                const st = ScrollTrigger.getById("workSpine");
+                if (st && st.progress < 0.15) { 
+                    const targetScroll = st.start + (st.end - st.start) * 0.2;
+                    lenis.scrollTo(targetScroll, { duration: 1.5, ease: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)) });
+                }
+            });
+
+            // Back Button Click Interaction
+            const backBtn = document.querySelector('.archive-back-btn');
+            if (backBtn) {
+                backBtn.addEventListener('click', (e) => {
+                    e.stopPropagation(); 
+                    lenis.scrollTo('.philosophy-section', { offset: 0, duration: 1.5, ease: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)) });
+                });
+            }
+
+            // Dropdown Menu Interaction
+            const chapterToggle = document.querySelector('.chapter-toggle');
+            const chapterMenu = document.querySelector('.chapter-menu');
+            const chapterChevron = document.getElementById('chapter-chevron');
+            let menuOpen = false;
+
+            if (chapterToggle && chapterMenu) {
+                chapterToggle.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    menuOpen = !menuOpen;
+                    if(menuOpen) {
+                        gsap.to(chapterMenu, { opacity: 1, y: 0, pointerEvents: 'auto', duration: 0.4, ease: 'power3.out' });
+                        gsap.fromTo('.filter-btn', { opacity: 0, x: -10 }, { opacity: 1, x: 0, stagger: 0.05, duration: 0.4, ease: 'power3.out' });
+                        gsap.to(chapterChevron, { rotate: 180, duration: 0.4, ease: 'power2.out' });
+                    } else {
+                        closeChapterMenu();
+                    }
+                });
+
+                document.addEventListener('click', () => {
+                    if(menuOpen) closeChapterMenu();
+                });
+            }
+
+            function closeChapterMenu() {
+                menuOpen = false;
+                gsap.to(chapterMenu, { opacity: 0, y: -10, pointerEvents: 'none', duration: 0.3, ease: 'power2.in' });
+                gsap.to(chapterChevron, { rotate: 0, duration: 0.4, ease: 'power2.out' });
+            }
+
+            // Chapter Navigation (Filter Buttons)
+            const filterBtns = document.querySelectorAll('.filter-btn');
+            filterBtns.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const filter = e.target.textContent.trim().toUpperCase();
+                    closeChapterMenu();
+                    
+                    const st = ScrollTrigger.getById("workSpine");
+                    if (!st) return;
+
+                    if (filter === 'ALL' || filter === 'ALL CHAPTERS') {
+                        // Scroll to the start of the horizontal track
+                        const targetScroll = st.start + (st.end - st.start) * 0.2; 
+                        lenis.scrollTo(targetScroll, { duration: 1.5, ease: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)) });
+                    } else {
+                        // Scroll to specific Chapter
+                        const catCard = document.querySelector(`.category-title-card[data-category="${filter}"]`);
+                        if (catCard) {
+                            const trackWidth = track.scrollWidth - window.innerWidth / 2;
+                            const catLeft = catCard.offsetLeft;
+                            
+                            // Map the distance along the track to the timeline's progress
+                            const fraction = Math.min(1, catLeft / trackWidth);
+                            // The horizontal scroll phase spans progress 0.2 to 1.0 (which is 80% of the timeline)
+                            const totalProgress = 0.2 + (fraction * 0.8);
+                            
+                            const targetScroll = st.start + (st.end - st.start) * totalProgress;
+                            lenis.scrollTo(targetScroll, { duration: 1.5, ease: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)) });
+                        }
+                    }
+                });
+            });
+
+            // Card 3D tilt hover logic (REMOVED to prevent jumping on click)
+            document.querySelectorAll('.project-card').forEach(card => {
+                const video = card.querySelector('video');
+                const cardCursor = card.querySelector('.card-cursor-inner');
+                
+                card.addEventListener('mousemove', e => {
+                    if(cardCursor) {
+                        const r = card.getBoundingClientRect();
+                        const mx = e.clientX - r.left;
+                        const my = e.clientY - r.top;
+                        gsap.to(cardCursor, { x: mx, y: my, xPercent: -50, yPercent: -50, scale: 1, duration: 0.2, ease: 'power2.out', overwrite: 'auto' });
+                    }
+                });
+                card.addEventListener('mouseenter', () => {
+                    if(video) { video.style.opacity = 1; video.play().catch(()=>{}); }
+                });
+                card.addEventListener('mouseleave', () => {
+                    if(cardCursor) { gsap.to(cardCursor, { scale: 0.8, duration: 0.4, ease: 'expo.out', overwrite: 'auto' }); }
+                    if(video) { video.style.opacity = 0; video.pause(); }
+                });
+            });
+        }
+
+        // -------------------------------------------------------------
+        // BOOTSTRAP
+        // -------------------------------------------------------------
+        window.addEventListener('DOMContentLoaded', async () => {
+            // Apply floating wrappers to all cards dynamically to keep HTML clean
+
+            // ===================== CATEGORY COLLAGE OVERLAY =====================
+            const catOverlay = document.getElementById('cat-collage-overlay');
+            const catCloseBtn = document.getElementById('cat-collage-close');
+            const catChapterEl = document.getElementById('cat-collage-chapter');
+            const catNameEl = document.getElementById('cat-collage-name');
+            const catCountEl = document.getElementById('cat-collage-count');
+            const catGrids = document.querySelectorAll('.cat-grid');
+
+            const CHAPTER_MAP = {
+                'ENTERTAINMENT & EVENTS': 'CHAPTER 01',
+                'UGC CAMPAIGNS': 'CHAPTER 02',
+                'FASHION & APPAREL': 'CHAPTER 03',
+                'SPORTS & ACTIVEWEAR': 'CHAPTER 04',
+                'FOOD & BEVERAGE': 'CHAPTER 05',
+                'LIVE MUSIC & CONCERTS': 'CHAPTER 06',
+                'REAL ESTATE & SPACES': 'CHAPTER 07',
+                'HEALTHCARE & BEAUTY': 'CHAPTER 08',
+                'RETAIL & ACCESSORIES': 'CHAPTER 09',
+            };
+
+            function openCatCollage(categoryName) {
+                catGrids.forEach(g => {
+                    g.classList.remove('active', 'cat-single-wrap');
+                    const decoded = (g.dataset.cat || '').replace(/&amp;/g,'&');
+                    if (decoded === categoryName) {
+                        g.classList.add('active');
+                        const cardCount = g.querySelectorAll('.project-card').length;
+                        if (cardCount === 1) g.classList.add('cat-single-wrap');
+                        catCountEl.innerText = cardCount + (cardCount === 1 ? ' PROJECT' : ' PROJECTS');
+
+                        // Populate Brand Logos Highlight Strip (Vibrant Manual Scroll)
+                        const logoStrip = document.getElementById('cat-collage-logos-strip');
+                        if (logoStrip) {
+                            logoStrip.innerHTML = '';
+                            const cardLogos = Array.from(g.querySelectorAll('.card-brand-logo img:first-child'));
+                            const uniqueLogoUrls = [...new Set(cardLogos.map(img => img.src))];
+                            
+                            if (uniqueLogoUrls.length > 0) {
+                                const mTrack = document.createElement('div');
+                                mTrack.className = 'top-marquee-track';
+                                uniqueLogoUrls.forEach(url => {
+                                    const logoImg = document.createElement('img');
+                                    logoImg.src = url;
+                                    logoImg.alt = "Client Brand";
+                                    mTrack.appendChild(logoImg);
+                                });
+                                logoStrip.appendChild(mTrack);
+                                logoStrip.style.display = 'flex';
+                                
+                                // Enable Drag-to-Scroll for 'moving right/left as we want'
+                                let isDown = false;
+                                let startX;
+                                let scrollLeft;
+                                logoStrip.addEventListener('mousedown', (e) => {
+                                    isDown = true;
+                                    startX = e.pageX - logoStrip.offsetLeft;
+                                    scrollLeft = logoStrip.scrollLeft;
+                                });
+                                logoStrip.addEventListener('mouseleave', () => { isDown = false; });
+                                logoStrip.addEventListener('mouseup', () => { isDown = false; });
+                                logoStrip.addEventListener('mousemove', (e) => {
+                                    if(!isDown) return;
+                                    e.preventDefault();
+                                    const x = e.pageX - logoStrip.offsetLeft;
+                                    const walk = (x - startX) * 2;
+                                    logoStrip.scrollLeft = scrollLeft - walk;
+                                });
+                            } else {
+                                logoStrip.style.display = 'none';
+                            }
+                        }
+
+                        // Populate internal card marquees (Client Scroll inside card)
+                        g.querySelectorAll('.project-card').forEach(card => {
+                            gsap.set(card, { 
+                                clearProps: 'rotateY,rotateX,scale,filter,x,y,transform,transformOrigin,perspective,transformPerspective'
+                            });
+                            const media = card.querySelector('.card-media img, .card-media video');
+                            if (media) {
+                                gsap.set(media, { clearProps: 'x,scale,transform' });
+                            }
+                            const info = card.querySelector('.card-info');
+                            if (info) {
+                                gsap.set(info, { clearProps: 'x,transform' });
+                            }
+                        });
+                    }
+                });
+                catChapterEl.innerText = CHAPTER_MAP[categoryName] || '';
+                catNameEl.innerText = categoryName;
+                catOverlay.style.display = 'block';
+                catOverlay.style.pointerEvents = 'auto';
+                catOverlay.scrollTop = 0;
+                requestAnimationFrame(() => { catOverlay.style.opacity = '1'; });
+                wireCollageCardListeners();
+                lenis.stop();
+            }
+
+            function closeCatCollage() {
+                catOverlay.style.opacity = '0';
+                setTimeout(() => {
+                    catOverlay.style.display = 'none';
+                    catOverlay.style.pointerEvents = 'none';
+                    catGrids.forEach(g => g.classList.remove('active', 'cat-single-wrap'));
+                    lenis.start();
+                }, 400);
+            }
+
+            document.querySelectorAll('.cat-clickable').forEach(catCard => {
+                catCard.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const catName = (catCard.dataset.category || '').replace(/&amp;/g, '&');
+                    openCatCollage(catName);
+                });
+            });
+
+            catCloseBtn && catCloseBtn.addEventListener('click', closeCatCollage);
+
+            const catExitBtn = document.getElementById('cat-collage-exit');
+            if (catExitBtn) {
+                catExitBtn.addEventListener('click', () => {
+                    closeCatCollage();
+                    const backBtn = document.querySelector('.archive-back-btn');
+                    if (backBtn) backBtn.click();
+                });
+            }
+
+            // Remove internal "BACK" buttons listeners if we removed the elements
+            // No action needed here, querySelectorAll will just find 0 elements.
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && catOverlay && catOverlay.style.display === 'block' && !document.getElementById('project-reveal').classList.contains('active')) {
+                    closeCatCollage();
+                }
+            });
+
+            function wireCollageCardListeners() {
+                catOverlay.querySelectorAll('.project-card').forEach((card) => {
+                    if (card._collageWired) return;
+                    card._collageWired = true;
+
+                    card.addEventListener('mouseenter', () => {
+                        const reelSrc = card.dataset.reel;
+                        if (!reelSrc || card._preloadedVideo) return;
+                        const preVid = document.createElement('video');
+                        preVid.src = reelSrc; preVid.muted = true; preVid.preload = 'auto';
+                        preVid.playsInline = true; preVid.style.display = 'none';
+                        document.body.appendChild(preVid); preVid.load();
+                        card._preloadedVideo = preVid;
+                    });
+
+                    card.addEventListener('click', () => {
+                        const reveal = document.getElementById('project-reveal');
+                        if (reveal.classList.contains('active')) return;
+                        const activeGrid = catOverlay.querySelector('.cat-grid.active');
+                        activeCardsList = activeGrid ? Array.from(activeGrid.querySelectorAll('.project-card')) : [card];
+                        const activeIndex = activeCardsList.indexOf(card);
+                        // Removed instantly snapping tilt to avoid visual pop, cards remain static now
+                        if (voidStage.triggerBurst) voidStage.triggerBurst();
+                        populateRevealData(activeIndex !== -1 ? activeIndex : 0);
+                        const rect = card.querySelector('.card-media').getBoundingClientRect();
+                        const prMedia = document.querySelector('.pr-media');
+                        reveal.scrollTop = 0;
+                        gsap.set(prMedia, { opacity: 1, x: rect.left, y: rect.top, width: rect.width, height: rect.height, borderRadius: '6px' });
+                        gsap.set(reveal, { display: 'block', opacity: 0 });
+                        reveal.classList.add('active');
+                        gsap.to(reveal, { opacity: 1, duration: 0.4, ease: 'power2.inOut' });
+                        gsap.to(prMedia, { x: 0, y: 0, width: '100vw', height: '100vh', borderRadius: '0px', duration: 0.9, ease: 'power4.inOut', onComplete: () => { prMedia.style.opacity = 0; } });
+                        gsap.set(['.pr-title-side','.pr-center-stage','.pr-info-wrapper'], { y: 40, opacity: 0 });
+                        gsap.set('.pr-reel-wrapper', { opacity: 0, scale: 1.05 });
+                        gsap.to('.pr-reel-wrapper', { scale: 1, opacity: 1, duration: 1.0, ease: 'power3.out', delay: 0.3 });
+                        gsap.to('.pr-center-stage', { y: 0, opacity: 1, duration: 0.9, ease: 'power3.out', delay: 0.4 });
+                        gsap.to('.pr-title-left', { y: 0, opacity: 1, duration: 0.9, ease: 'power3.out', delay: 0.5 });
+                        gsap.to('.pr-title-right', { y: 0, opacity: 1, duration: 0.9, ease: 'power3.out', delay: 0.6 });
+                        gsap.to('.pr-info-wrapper', { y: 0, opacity: 1, duration: 0.9, ease: 'power3.out', delay: 0.7 });
+                        gsap.to('.pr-close, .pr-cursor-pill, .pr-nav-btn', { opacity: 1, scale: 1, duration: 0.8, delay: 0.7 });
+                        reveal._activeCard = card;
+                    });
+                });
+            }
+
             // (card-float-wrapper logic removed to prevent DOM breaking and vertical stagger)
 
             // Setup Lenis
@@ -3979,204 +4342,7 @@
                 initAboutAnimations(); // Initialize About Section Reveal
                 initAboutTilt(); // Initialize About 3D interaction
                 initClientSpotlight(); // Initialize The Client Logo Mask Hover Effect
-                
-                // Initialize optimized work spine (replaces old initWorkSpine)
-                const { workTimeline, videoManager } = initOptimizedWorkSpine(lenis, voidStage);
-                console.log('✅ Optimized work section initialized');
-
-                // --- CATEGORY COLLAGE OVERLAY LOGIC ---
-                const catOverlay = document.getElementById('cat-collage-overlay');
-                const catCloseBtn = document.getElementById('cat-collage-close');
-                const catChapterEl = document.getElementById('cat-collage-chapter');
-                const catNameEl = document.getElementById('cat-collage-name');
-                const catCountEl = document.getElementById('cat-collage-count');
-                const catGrids = document.querySelectorAll('.cat-grid');
-
-                const CHAPTER_MAP = {
-                    'ENTERTAINMENT & EVENTS': 'CHAPTER 01',
-                    'UGC CAMPAIGNS': 'CHAPTER 02',
-                    'FASHION & APPAREL': 'CHAPTER 03',
-                    'SPORTS & ACTIVEWEAR': 'CHAPTER 04',
-                    'FOOD & BEVERAGE': 'CHAPTER 05',
-                    'LIVE MUSIC & CONCERTS': 'CHAPTER 06',
-                    'REAL ESTATE & SPACES': 'CHAPTER 07',
-                    'HEALTHCARE & BEAUTY': 'CHAPTER 08',
-                    'RETAIL & ACCESSORIES': 'CHAPTER 09',
-                    'EDUCATION & CONSULTANCY': 'CHAPTER 10',
-                    'LIFESTYLE & LUXURY': 'CHAPTER 11',
-                    'OTHERS': 'CHAPTER 12'
-                };
-
-                function openCatCollage(categoryName) {
-                    catGrids.forEach(g => {
-                        g.classList.remove('active', 'cat-single-wrap');
-                        const decoded = (g.dataset.cat || '').replace(/&amp;/g, '&');
-                        if (decoded === categoryName) {
-                            g.classList.add('active');
-                            const cardCount = g.querySelectorAll('.project-card').length;
-                            if (cardCount === 1) g.classList.add('cat-single-wrap');
-                            catCountEl.innerText = cardCount + (cardCount === 1 ? ' PROJECT' : ' PROJECTS');
-
-                            // Populate Brand Logos strip
-                            const logoStrip = document.getElementById('cat-collage-logos-strip');
-                            if (logoStrip) {
-                                logoStrip.innerHTML = '';
-                                const cardLogos = Array.from(g.querySelectorAll('.card-brand-logo img:first-child'));
-                                const uniqueLogoUrls = [...new Set(cardLogos.map(img => img.src))];
-                                if (uniqueLogoUrls.length > 0) {
-                                    const mTrack = document.createElement('div');
-                                    mTrack.className = 'top-marquee-track';
-                                    uniqueLogoUrls.forEach(url => {
-                                        const logoImg = document.createElement('img');
-                                        logoImg.src = url;
-                                        logoImg.alt = "Brand";
-                                        mTrack.appendChild(logoImg);
-                                    });
-                                    logoStrip.appendChild(mTrack);
-                                    logoStrip.style.display = 'flex';
-                                } else {
-                                    logoStrip.style.display = 'none';
-                                }
-                            }
-                        }
-                    });
-                    catChapterEl.innerText = CHAPTER_MAP[categoryName] || '';
-                    catNameEl.innerText = categoryName;
-                    catOverlay.style.display = 'block';
-                    catOverlay.style.pointerEvents = 'auto';
-                    catOverlay.scrollTop = 0;
-                    requestAnimationFrame(() => { catOverlay.style.opacity = '1'; });
-                    wireCollageCardListeners();
-                    lenis.stop();
-                    if (videoManager && typeof videoManager.init === 'function') {
-                        // Re-scan to ensure newly visible overlay cards are observed for optimization
-                        videoManager.init();
-                    }
-                }
-
-                function closeCatCollage() {
-                    gsap.to(catOverlay, {
-                        opacity: 0, duration: 0.4, ease: 'power2.in',
-                        onComplete: () => {
-                            catOverlay.style.display = 'none';
-                            catOverlay.style.pointerEvents = 'none';
-                            catGrids.forEach(g => g.classList.remove('active', 'cat-single-wrap'));
-                            lenis.start();
-                        }
-                    });
-                }
-
-                document.querySelectorAll('.cat-clickable').forEach(catCard => {
-                    catCard.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        const catName = (catCard.getAttribute('data-category') || '').replace(/&amp;/g, '&');
-                        openCatCollage(catName);
-                    });
-                });
-
-                catCloseBtn && catCloseBtn.addEventListener('click', closeCatCollage);
-                document.getElementById('cat-collage-exit')?.addEventListener('click', () => {
-                    closeCatCollage();
-                    document.querySelector('.archive-back-btn')?.click();
-                });
-
-                function wireCollageCardListeners() {
-                    catOverlay.querySelectorAll('.project-card').forEach((card) => {
-                        if (card._collageWired) return;
-                        card._collageWired = true;
-                        card.addEventListener('click', () => {
-                            const reveal = document.getElementById('project-reveal');
-                            if (reveal.classList.contains('active')) return;
-                            const activeGrid = catOverlay.querySelector('.cat-grid.active');
-                            activeCardsList = activeGrid ? Array.from(activeGrid.querySelectorAll('.project-card')) : [card];
-                            const activeIndex = activeCardsList.indexOf(card);
-                            if (voidStage.triggerBurst) voidStage.triggerBurst();
-                            populateRevealData(activeIndex !== -1 ? activeIndex : 0);
-                            
-                            const rect = card.querySelector('.card-media').getBoundingClientRect();
-                            const prMedia = document.querySelector('.pr-media');
-                            reveal.scrollTop = 0;
-                            gsap.set(prMedia, { opacity: 1, x: rect.left, y: rect.top, width: rect.width, height: rect.height, borderRadius: '6px' });
-                            gsap.set(reveal, { display: 'block', opacity: 0 });
-                            reveal.classList.add('active');
-                            gsap.to(reveal, { opacity: 1, duration: 0.4, ease: 'power2.inOut' });
-                            gsap.to(prMedia, { x: 0, y: 0, width: '100vw', height: '100vh', borderRadius: '0px', duration: 0.9, ease: 'power4.inOut', onComplete: () => { prMedia.style.opacity = 0; } });
-                            
-                            gsap.set(['.pr-title-side','.pr-center-stage','.pr-info-wrapper'], { y: 40, opacity: 0 });
-                            gsap.set('.pr-reel-wrapper', { opacity: 0, scale: 1.05 });
-                            gsap.to('.pr-reel-wrapper', { scale: 1, opacity: 1, duration: 1.0, ease: 'power3.out', delay: 0.3 });
-                            gsap.to('.pr-center-stage', { y: 0, opacity: 1, duration: 0.9, ease: 'power3.out', delay: 0.4 });
-                            gsap.to('.pr-title-left', { y: 0, opacity: 1, duration: 0.9, ease: 'power3.out', delay: 0.5 });
-                            gsap.to('.pr-title-right', { y: 0, opacity: 1, duration: 0.9, ease: 'power3.out', delay: 0.6 });
-                            gsap.to('.pr-info-wrapper', { y: 0, opacity: 1, duration: 0.9, ease: 'power3.out', delay: 0.7 });
-                            gsap.to('.pr-close, .pr-cursor-pill, .pr-nav-btn', { opacity: 1, scale: 1, duration: 0.8, delay: 0.7 });
-                        });
-                    });
-                }
-
-                // --- DROPDRON & FILTER NAVIGATION ---
-                const chapterToggle = document.querySelector('.chapter-toggle');
-                const chapterMenu = document.querySelector('.chapter-menu');
-                const chapterChevron = document.getElementById('chapter-chevron');
-                let menuOpen = false;
-
-                function closeChapterMenu() {
-                    menuOpen = false;
-                    gsap.to(chapterMenu, { opacity: 0, y: -10, pointerEvents: 'none', duration: 0.3, ease: 'power2.in' });
-                    gsap.to(chapterChevron, { rotate: 0, duration: 0.4, ease: 'power2.out' });
-                }
-
-                if (chapterToggle && chapterMenu) {
-                    chapterToggle.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        menuOpen = !menuOpen;
-                        if(menuOpen) {
-                            gsap.to(chapterMenu, { opacity: 1, y: 0, pointerEvents: 'auto', duration: 0.4, ease: 'power3.out' });
-                            gsap.fromTo('.filter-btn', { opacity: 0, x: -10 }, { opacity: 1, x: 0, stagger: 0.05, duration: 0.4, ease: 'power3.out' });
-                            gsap.to(chapterChevron, { rotate: 180, duration: 0.4, ease: 'power2.out' });
-                        } else {
-                            closeChapterMenu();
-                        }
-                    });
-                    document.addEventListener('click', () => { if(menuOpen) closeChapterMenu(); });
-                }
-
-                const filterBtns = document.querySelectorAll('.filter-btn');
-                filterBtns.forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        const filter = e.target.textContent.trim().toUpperCase();
-                        closeChapterMenu();
-                        const st = ScrollTrigger.getById("workSpine");
-                        if (!st) return;
-                        if (filter === 'ALL' || filter === 'ALL CHAPTERS') {
-                            const targetProgress = 0.2; 
-                            lenis.scrollTo(st.start + (st.end - st.start) * targetProgress, { duration: 1.5 });
-                        } else {
-                            const catCard = document.querySelector(`.category-title-card[data-category="${filter}"]`);
-                            if (catCard) {
-                                const track = document.getElementById('spine-track');
-                                const trackWidth = track.scrollWidth - window.innerWidth / 2;
-                                const fraction = Math.min(1, catCard.offsetLeft / trackWidth);
-                                const totalProgress = 0.2 + (fraction * 0.82);
-                                lenis.scrollTo(st.start + (st.end - st.start) * totalProgress, { duration: 1.5 });
-                            }
-                        }
-                    });
-                });
-
-                // Back Button Click
-                document.querySelector('.archive-back-btn')?.addEventListener('click', (e) => {
-                    e.stopPropagation(); 
-                    lenis.scrollTo('.philosophy-section', { offset: 0, duration: 1.5 });
-                });
-
-                // Gateway Window Click (Fast Forward)
-                document.querySelector('.gateway-window')?.addEventListener('click', () => {
-                    const st = ScrollTrigger.getById("workSpine");
-                    if (st && st.progress < 0.15) { 
-                        lenis.scrollTo(st.start + (st.end - st.start) * 0.22, { duration: 1.5 });
-                    }
-                });
+                initWorkSpine(); // Initialize the dynamic work spine on load
 
                 // Populate Category Card Mini-Logos (Vibrant Manual Scroll)
                 document.querySelectorAll('.category-title-card').forEach(card => {
@@ -5097,7 +5263,7 @@
                     // Smart Video Integration (Liquid Loading)
                     mpVids.innerHTML = videos.map((v, i) => `
                         <div class="liquid-glass-card overflow-hidden rounded-xl border border-white/10 group cursor-pointer" onclick="this.querySelector('video').play(); if(this.querySelector('video').requestFullscreen) this.querySelector('video').requestFullscreen();">
-                            <video data-src="${v.trim()}" class="w-full aspect-video object-cover opacity-60 group-hover:opacity-100 transition-opacity" loop playsinline muted preload="none"></video>
+                            <video src="${v.trim()}" class="w-full aspect-video object-cover opacity-60 group-hover:opacity-100 transition-opacity" loop playsinline muted></video>
                             <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                 <span class="font-counter text-[9px] tracking-widest text-white bg-black/40 px-4 py-2 rounded-full">PLAY REEL</span>
                             </div>

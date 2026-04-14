@@ -700,3 +700,39 @@
         }
         .floating-social-btn svg { width: 18px; height: 18px; }
         .floating-social-btn.whatsapp:hover { border-color: #25D366; color: #25D366; background: rgba(37,211,102,0.08); box-shadow: 0 0 20px rgba(37,211,102,0.2); }
+
+/* Video Performance Optimizations */
+.project-card video {
+  will-change: opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.project-card:not(:hover) video {
+  will-change: auto;
+}
+
+/* Card Performance Optimizations */
+.project-card {
+  will-change: transform, opacity;
+}
+
+.project-card:not(.active) {
+  will-change: auto;
+}
+
+/* Smooth Scrolling Optimizations */
+.spine-track {
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+/* Reduce Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  .project-card,
+  .project-card video,
+  .spine-track {
+    will-change: auto !important;
+    transition: none !important;
+  }
+}

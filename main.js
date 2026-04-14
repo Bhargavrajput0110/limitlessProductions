@@ -4,6 +4,9 @@ import * as THREE from 'three';
         import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
         import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 
+        // Import optimized work section
+        import { initOptimizedWorkSpine, VideoManager } from './work-section-optimized.js';
+
         // -------------------------------------------------------------
         // CONFIG & STATE
         // -------------------------------------------------------------
@@ -1362,7 +1365,11 @@ import * as THREE from 'three';
                 initAboutAnimations(); // Initialize About Section Reveal
                 initAboutTilt(); // Initialize About 3D interaction
                 initClientSpotlight(); // Initialize The Client Logo Mask Hover Effect
-                initWorkSpine(); // Initialize the dynamic work spine on load
+                
+                // Initialize optimized work spine (replaces old initWorkSpine)
+                const { workTimeline, videoManager } = initOptimizedWorkSpine(lenis, voidStage);
+                console.log('✅ Optimized work section initialized');
+                
                 initServicesDeck(); // Initialize 3D Services Deck
                 initMagneticInteractions();
             }, 2500); // Only activate mouse effects after reveal is stable

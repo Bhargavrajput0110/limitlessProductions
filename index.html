@@ -1242,7 +1242,39 @@
 
         <div class="preloader-flash"></div>
     </div>
-    
+
+    <!-- INLINE PRELOADER CONTROLLER: runs independently, guarantees page always reveals -->
+    <script>
+    (function() {
+        var preloader = document.getElementById('preloader');
+        var countEl   = document.getElementById('pre-count-val');
+        var fillEl    = document.getElementById('pre-word-fill');
+        var count = 0;
+
+        // Count 000 → 100 over ~2.2 seconds
+        var ci = setInterval(function() {
+            count += 2;
+            var v = Math.min(count, 100);
+            if (countEl) countEl.textContent = String(v).padStart(3, '0');
+            if (fillEl) fillEl.style.clipPath = 'inset(0 ' + (100 - v) + '% 0 0)';
+            if (v >= 100) clearInterval(ci);
+        }, 44);
+
+        // Hard dismiss after 3 seconds: preloader fades out no matter what
+        setTimeout(function() {
+            clearInterval(ci);
+            if (countEl) countEl.textContent = '100';
+            if (!preloader) return;
+            preloader.style.transition = 'opacity 0.8s ease';
+            preloader.style.opacity = '0';
+            preloader.style.pointerEvents = 'none';
+            setTimeout(function() {
+                preloader.style.display = 'none';
+            }, 850);
+        }, 3000);
+    })();
+    </script>
+
 
     <header>
         <a href="#" class="logo nav-trigger" data-target="hero">

@@ -651,9 +651,29 @@
         .cat-grid article.project-card::before { content: ''; display: block; width: 100%; height: 28px; background: #0B0D12; border-bottom: 1px solid rgba(255,255,255,0.05); flex-shrink: 0; position: relative; z-index: 2; }
         .cat-grid article.project-card::after { content: ''; position: absolute; top: 12px; left: 16px; width: 6px; height: 6px; border-radius: 50%; background: #FF5F56; box-shadow: 12px 0 0 #FFBD2E, 24px 0 0 #27C93F; z-index: 3; }
         /* Image Media */
-        .cat-grid article.project-card .card-media { position: relative !important; inset: auto !important; width: 100% !important; height: 230px !important; border-radius: 0 !important; flex-shrink: 0; border-bottom: 1px solid #2A2A2A; overflow: hidden; background: #000; }
-        .cat-grid article.project-card .card-media img, .cat-grid article.project-card .card-media video { width: 100%; height: 100%; object-fit: cover; transition: transform 0.8s ease; }
-        .cat-grid article.project-card:hover .card-media img, .cat-grid article.project-card:hover .card-media video { transform: scale(1.05); }
+        .cat-grid article.project-card .card-media video,
+        .spine-track article.project-card .card-media video { 
+            position: absolute; 
+            inset: 0; 
+            width: 100%; 
+            height: 100%; 
+            object-fit: cover; 
+            opacity: 0; 
+            transition: opacity 0.6s ease, transform 0.8s ease; 
+            z-index: 1;
+            pointer-events: none;
+        }
+        .cat-grid article.project-card .card-media img,
+        .spine-track article.project-card .card-media img { 
+            position: relative; 
+            width: 100%; 
+            height: 100%; 
+            object-fit: cover; 
+            transition: opacity 0.6s ease, transform 0.8s ease; 
+            z-index: 0;
+        }
+        .cat-grid article.project-card:hover .card-media img { opacity: 0.3; }
+        .cat-grid article.project-card:hover .card-media video { opacity: 1; }
         .cat-grid article.project-card .spine-connector { display: none; }
         /* Info Block */
         .cat-grid article.project-card .card-info { 
@@ -4042,28 +4062,132 @@
                 });
             });
 
-            document.querySelectorAll('.project-card').forEach(card => {
-                const video = card.querySelector('video');
-                const cardCursor = card.querySelector('.card-cursor-inner');
-                let rect = null;
-                
-                card.addEventListener('mouseenter', () => {
-                    rect = card.getBoundingClientRect();
-                    if(video) { video.style.opacity = 1; video.play().catch(()=>{}); }
-                });
+            // ===================== UNIFIED PROJECT CARD ENGINE (HIGH PERFORMANCE) =====================
+            function setupProjectCard(card, index, isArchive = false) {
+                if (card._wired) return;
+                card._wired = true;
 
-                card.addEventListener('mousemove', e => {
-                    if(cardCursor && rect) {
-                        const mx = e.clientX - rect.left;
-                        const my = e.clientY - rect.top;
+                const cardMedia = card.querySelector('.card-media');
+                const cardCursor = card.querySelector('.card-cursor-inner');
+                const reelSrc = card.dataset.reel;
+                let rect = null;
+
+                // JIT Video Rendering
+                const handleMouseEnter = () => {
+                    if (!reelSrc) return;
+                    rect = card.getBoundingClientRect();
+                    
+                    let vid = card.querySelector('.on-demand-video');
+                    if (!vid) {
+                        vid = document.createElement('video');
+                        vid.muted = true; vid.loop = true; vid.playsInline = true;
+                        vid.preload = 'auto'; vid.className = 'on-demand-video';
+                        vid.style.cssText = 'position:absolute; inset:0; width:100%; height:100%; object-fit:cover; pointer-events:none; z-index:2; opacity:0; transition:opacity 0.6s ease;';
+                        vid.src = reelSrc;
+                        cardMedia.appendChild(vid);
+                    }
+                    
+                    vid.play().then(() => { vid.style.opacity = '1'; }).catch(() => {});
+                    card._currentVid = vid;
+                };
+
+                const handleMouseLeave = () => {
+                    if (cardCursor) { gsap.to(cardCursor, { scale: 0.8, duration: 0.4, ease: 'expo.out' }); }
+                    if (card._currentVid) {
+                        const vid = card._currentVid;
+                        vid.style.opacity = '0';
+                        // Keep DOM clean by removing video after fade
+                        setTimeout(() => {
+                            if (!card._activeInReveal) { // Don't remove if we just clicked it
+                                vid.pause();
+                                vid.src = "";
+                                vid.remove();
+                                if (card._currentVid === vid) card._currentVid = null;
+                            }
+                        }, 600);
+                    }
+                };
+
+                const handleMouseMove = (e) => {
+                    if (!rect) rect = card.getBoundingClientRect();
+                    const mx = e.clientX - rect.left;
+                    const my = e.clientY - rect.top;
+                    
+                    if (cardCursor) {
                         gsap.to(cardCursor, { x: mx, y: my, xPercent: -50, yPercent: -50, scale: 1, duration: 0.2, ease: 'power2.out', overwrite: 'auto' });
                     }
+
+                    // Subtle parallax tilt
+                    const xc = rect.width / 2;
+                    const yc = rect.height / 2;
+                    const dx = (mx - xc) / xc;
+                    const dy = (my - yc) / yc;
+                    gsap.to(cardMedia, {
+                        rotateY: dx * 5,
+                        rotateX: -dy * 5,
+                        duration: 0.6,
+                        ease: 'power2.out'
+                    });
+                };
+
+                card.addEventListener('mouseenter', handleMouseEnter);
+                card.addEventListener('mouseleave', handleMouseLeave);
+                card.addEventListener('mousemove', handleMouseMove);
+
+                card.addEventListener('click', () => {
+                    const reveal = document.getElementById('project-reveal');
+                    if (reveal.classList.contains('active')) return;
+                    
+                    card._activeInReveal = true;
+                    lenis.stop();
+                    
+                    // Scope visibility check for archive vs spine
+                    let activeList;
+                    if (isArchive) {
+                        const activeGrid = document.querySelector('.cat-grid.active');
+                        activeList = activeGrid ? Array.from(activeGrid.querySelectorAll('.project-card')) : [card];
+                    } else {
+                        activeList = Array.from(document.querySelectorAll('.horizontal-track .project-card'));
+                    }
+                    
+                    const activeIndex = activeList.indexOf(card);
+                    if (voidStage.triggerBurst) voidStage.triggerBurst();
+
+                    populateRevealData(activeIndex !== -1 ? activeIndex : index, isArchive ? 'archive' : 'spine');
+
+                    const mRect = cardMedia.getBoundingClientRect();
+                    const prMedia = document.querySelector('.pr-media');
+                    reveal.scrollTop = 0;
+                    
+                    gsap.set(prMedia, { opacity: 1, x: mRect.left, y: mRect.top, width: mRect.width, height: mRect.height, borderRadius: '6px' });
+                    gsap.set(reveal, { display: 'block', opacity: 0 });
+                    reveal.classList.add('active');
+                    
+                    gsap.to(reveal, { opacity: 1, duration: 0.5 });
+                    gsap.to(prMedia, { 
+                        x: 0, y: 0, width: '100%', height: '100%', borderRadius: '0px', 
+                        duration: 1.1, ease: 'expo.inOut',
+                        onComplete: () => { 
+                            card._activeInReveal = false;
+                            // JIT Load Overlay Videos ONLY after entrance
+                            loadRevealVideos(card);
+                        } 
+                    });
                 });
-                card.addEventListener('mouseleave', () => {
-                    if(cardCursor) { gsap.to(cardCursor, { scale: 0.8, duration: 0.4, ease: 'expo.out', overwrite: 'auto' }); }
-                    if(video) { video.style.opacity = 0; video.pause(); }
-                });
-            });
+            }
+
+            function loadRevealVideos(card) {
+                const vid1 = document.getElementById('pr-portrait-1');
+                const vid2 = document.getElementById('pr-portrait-2');
+                const vid3 = document.getElementById('pr-portrait-3');
+                
+                if (vid1 && card._p1) { vid1.src = card._p1; vid1.load(); vid1.play().catch(()=>{}); }
+                if (vid2 && card._p2) { vid2.src = card._p2; vid2.load(); vid2.play().catch(()=>{}); }
+                if (vid3 && card._p3) { vid3.src = card._p3; vid3.load(); vid3.play().catch(()=>{}); }
+            }
+
+            // Wired up existing cards on spine
+            document.querySelectorAll('.horizontal-track .project-card').forEach((card, i) => setupProjectCard(card, i, false));
         }
 
         // -------------------------------------------------------------
@@ -4209,47 +4333,8 @@
             });
 
             function wireCollageCardListeners() {
-                catOverlay.querySelectorAll('.project-card').forEach((card) => {
-                    if (card._collageWired) return;
-                    card._collageWired = true;
-
-                    card.addEventListener('mouseenter', () => {
-                        const reelSrc = card.dataset.reel;
-                        if (!reelSrc || card._preloadedVideo) return;
-                        const preVid = document.createElement('video');
-                        preVid.src = reelSrc; preVid.muted = true; preVid.preload = 'auto';
-                        preVid.playsInline = true; preVid.style.display = 'none';
-                        document.body.appendChild(preVid); preVid.load();
-                        card._preloadedVideo = preVid;
-                    });
-
-                    card.addEventListener('click', () => {
-                        const reveal = document.getElementById('project-reveal');
-                        if (reveal.classList.contains('active')) return;
-                        const activeGrid = catOverlay.querySelector('.cat-grid.active');
-                        activeCardsList = activeGrid ? Array.from(activeGrid.querySelectorAll('.project-card')) : [card];
-                        const activeIndex = activeCardsList.indexOf(card);
-                        // Removed instantly snapping tilt to avoid visual pop, cards remain static now
-                        if (voidStage.triggerBurst) voidStage.triggerBurst();
-                        populateRevealData(activeIndex !== -1 ? activeIndex : 0);
-                        const rect = card.querySelector('.card-media').getBoundingClientRect();
-                        const prMedia = document.querySelector('.pr-media');
-                        reveal.scrollTop = 0;
-                        gsap.set(prMedia, { opacity: 1, x: rect.left, y: rect.top, width: rect.width, height: rect.height, borderRadius: '6px' });
-                        gsap.set(reveal, { display: 'block', opacity: 0 });
-                        reveal.classList.add('active');
-                        gsap.to(reveal, { opacity: 1, duration: 0.4, ease: 'power2.inOut' });
-                        gsap.to(prMedia, { x: 0, y: 0, width: '100vw', height: '100vh', borderRadius: '0px', duration: 0.9, ease: 'power4.inOut', onComplete: () => { prMedia.style.opacity = 0; } });
-                        gsap.set(['.pr-title-side','.pr-center-stage','.pr-info-wrapper'], { y: 40, opacity: 0 });
-                        gsap.set('.pr-reel-wrapper', { opacity: 0, scale: 1.05 });
-                        gsap.to('.pr-reel-wrapper', { scale: 1, opacity: 1, duration: 1.0, ease: 'power3.out', delay: 0.3 });
-                        gsap.to('.pr-center-stage', { y: 0, opacity: 1, duration: 0.9, ease: 'power3.out', delay: 0.4 });
-                        gsap.to('.pr-title-left', { y: 0, opacity: 1, duration: 0.9, ease: 'power3.out', delay: 0.5 });
-                        gsap.to('.pr-title-right', { y: 0, opacity: 1, duration: 0.9, ease: 'power3.out', delay: 0.6 });
-                        gsap.to('.pr-info-wrapper', { y: 0, opacity: 1, duration: 0.9, ease: 'power3.out', delay: 0.7 });
-                        gsap.to('.pr-close, .pr-cursor-pill, .pr-nav-btn', { opacity: 1, scale: 1, duration: 0.8, delay: 0.7 });
-                        reveal._activeCard = card;
-                    });
+                catOverlay.querySelectorAll('.project-card').forEach((card, i) => {
+                    setupProjectCard(card, i, true);
                 });
             }
 
@@ -4770,21 +4855,11 @@
                 const vid2 = document.getElementById('pr-portrait-2');
                 const vid3 = document.getElementById('pr-portrait-3');
                 
-                if (vid1) {
-                    vid1.src = p1;
-                    vid1.closest('.group').style.display = p1 ? 'flex' : 'none';
-                    if(p1) vid1.load();
-                }
-                if (vid2) {
-                    vid2.src = p2;
-                    vid2.closest('.group').style.display = p2 ? 'flex' : 'none';
-                    if(p2) vid2.load();
-                }
-                if (vid3) {
-                    vid3.src = p3;
-                    vid3.closest('.group').style.display = p3 ? 'flex' : 'none';
-                    if(p3) vid3.load();
-                }
+                // Stage sources for JIT loading
+                card._p1 = p1; card._p2 = p2; card._p3 = p3;
+                
+                // Clear current videos and set placeholders
+                [vid1, vid2, vid3].forEach(v => { if(v) { v.src = ''; v.load(); } });
                 
                 // Populate Instagram handle above portrait reels
                 const igHandle = card.dataset.instagram || '';
@@ -4946,67 +5021,7 @@
 
             document.querySelectorAll('.project-card').forEach((card, index) => {
                 // HOVER PRELOAD: Start buffering the video smartly when user hovers the card
-                card.addEventListener('mouseenter', () => {
-                    const reelSrc = card.dataset.reel;
-                    if (!reelSrc || card._preloadedVideo) return;
-                    const preVid = document.createElement('video');
-                    preVid.src = reelSrc;
-                    preVid.muted = true;
-                    // Changed from auto to metadata so it prepares playback without heavily consuming memory/bandwidth on many hovers
-                    preVid.preload = 'metadata';
-                    preVid.playsInline = true;
-                    preVid.style.display = 'none';
-                    document.body.appendChild(preVid);
-                    preVid.load();
-                    card._preloadedVideo = preVid;
-                });
-                card.addEventListener('mouseleave', () => {
-                    // Keep _preloadedVideo alive for 3s, clean up if not used
-                    setTimeout(() => {
-                        if (card._preloadedVideo && !document.getElementById('project-reveal').classList.contains('active')) {
-                            card._preloadedVideo.src = '';
-                            card._preloadedVideo.remove();
-                            card._preloadedVideo = null;
-                        }
-                    }, 3000);
-                });
-
-                card.addEventListener('click', () => {
-                    const reveal = document.getElementById('project-reveal');
-                    if (reveal.classList.contains('active')) return;
-                    
-                    lenis.stop(); // Freeze background
-                    
-                    // Fetch visible cards to maintain filter accuracy
-                    activeCardsList = Array.from(document.querySelectorAll('.project-card:not([style*="display: none"])'));
-                    const activeIndex = activeCardsList.indexOf(card);
-                    
-                    // Removed instantaneous rotate/tilt reset because cards no longer move on hover
-                    
-                    // Aberration burst
-                    if (voidStage.triggerBurst) voidStage.triggerBurst();
-
-                    // Copy Data to Overlay using central function
-                    populateRevealData(activeIndex !== -1 ? activeIndex : index);
-
-                    const rect = card.querySelector('.card-media').getBoundingClientRect();
-                    const prMedia = document.querySelector('.pr-media');
-                    
-                    // Reset overlay scroll
-                    const scroller = document.getElementById('project-reveal');
-                    scroller.scrollTop = 0;
-                    
-                    // Set initial bounds for seamless pop
-                    gsap.set(prMedia, { 
-                        opacity: 1,
-                        x: rect.left, 
-                        y: rect.top, 
-                        width: rect.width, 
-                        height: rect.height,
-                        borderRadius: '6px'
-                    });
-                    
-                    gsap.set(reveal, { display: 'block', opacity: 0 });
+                // Project Card listeners moved to consolidated handler for peak performance
                     reveal.classList.add('active');
                     
                     // Hide background elements
@@ -5283,11 +5298,20 @@
                     mpWorks.innerHTML = works.map(w => `<span class="px-4 py-2 rounded-full border border-white/10 text-[9px] tracking-widest text-white/60 font-counter uppercase">${w.trim()}</span>`).join('');
                     
                     // Smart Video Integration (Liquid Loading)
+                    // High-Performance JIT Model Video
                     mpVids.innerHTML = videos.map((v, i) => `
-                        <div class="liquid-glass-card overflow-hidden rounded-xl border border-white/10 group cursor-pointer" onclick="this.querySelector('video').play(); if(this.querySelector('video').requestFullscreen) this.querySelector('video').requestFullscreen();">
-                            <video src="${v.trim()}" class="w-full aspect-video object-cover opacity-60 group-hover:opacity-100 transition-opacity" loop playsinline muted></video>
-                            <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                <span class="font-counter text-[9px] tracking-widest text-white bg-black/40 px-4 py-2 rounded-full">PLAY REEL</span>
+                        <div class="liquid-glass-card mp-video-card overflow-hidden rounded-xl border border-white/10 group cursor-pointer relative aspect-video" 
+                             data-vsrc="${v.trim()}"
+                             onmouseenter="const v = this.querySelector('video'); if(!v){ const nv = document.createElement('video'); nv.src=this.dataset.vsrc; nv.muted=true; nv.loop=true; nv.playsInline=true; nv.className='w-full h-full object-cover'; this.insertBefore(nv, this.firstChild); nv.play(); } else { v.play(); }"
+                             onmouseleave="const v = this.querySelector('video'); if(v) v.pause();"
+                             onclick="const v = this.querySelector('video'); if(v) { if(v.requestFullscreen) v.requestFullscreen(); else v.play(); }">
+                            
+                            <div class="absolute inset-0 bg-white/5 flex items-center justify-center -z-10">
+                                <div class="w-8 h-8 rounded-full border border-white/20 border-t-white animate-spin"></div>
+                            </div>
+                            
+                            <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20">
+                                <span class="font-counter text-[9px] tracking-widest text-white bg-black/60 px-4 py-2 rounded-full border border-white/20">VIEW REEL</span>
                             </div>
                         </div>
                     `).join('');

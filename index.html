@@ -3881,7 +3881,7 @@
                 scrollTrigger: {
                     trigger: "#work",
                     start: "top top",
-                    end: "+=25000",
+                    end: "+=12000",
                     pin: true,
                     scrub: 1,
                     invalidateOnRefresh: true,
@@ -3915,14 +3915,26 @@
                             const norm = Math.max(0, 1 - dist / (window.innerWidth * 0.5));
                             const rotationY = (xOffset / cx) * -20;
                             
-                            data.set.scale(0.85 + norm * 0.15);
-                            data.set.filter(`brightness(${data.isProject ? 0.3 + norm * 0.7 : 0.4 + norm * 0.6})`);
-                            data.set.rotateY(data.isProject ? rotationY : rotationY * 0.5);
+                            // High-Performance setters
+                            if (!data.qs) {
+                                data.qs = {
+                                    scale: gsap.quickSetter(data.card, "scale"),
+                                    filter: gsap.quickSetter(data.card, "filter"),
+                                    rotateY: gsap.quickSetter(data.card, "rotateY"),
+                                    mediaX: data.isProject ? gsap.quickSetter(data.media, "x") : null,
+                                    mediaScale: data.isProject ? gsap.quickSetter(data.media, "scale") : null,
+                                    infoX: data.isProject ? gsap.quickSetter(data.info, "x") : null
+                                };
+                            }
+
+                            data.qs.scale(0.85 + norm * 0.15);
+                            data.qs.filter(`brightness(${data.isProject ? 0.3 + norm * 0.7 : 0.4 + norm * 0.6})`);
+                            data.qs.rotateY(data.isProject ? rotationY : rotationY * 0.5);
                             
                             if (data.isProject) {
-                                if (data.set.mediaX) data.set.mediaX(xOffset * 0.15);
-                                if (data.set.mediaScale) data.set.mediaScale(1.3 - (norm * 0.3));
-                                if (data.set.infoX) data.set.infoX(xOffset * 0.08);
+                                if (data.qs.mediaX) data.qs.mediaX(xOffset * 0.15);
+                                if (data.qs.mediaScale) data.qs.mediaScale(1.3 - (norm * 0.3));
+                                if (data.qs.infoX) data.qs.infoX(xOffset * 0.08);
                             } else {
                                 if (cardCenter < window.innerWidth * 0.7) {
                                     currentActiveFilter = data.category;
@@ -4072,33 +4084,41 @@
                 const reelSrc = card.dataset.reel;
                 let rect = null;
 
-                // JIT Video Rendering
+                // JIT Video Rendering with Debounce (Prevents lag on sweeps)
                 const handleMouseEnter = () => {
                     if (!reelSrc) return;
                     rect = card.getBoundingClientRect();
                     
-                    let vid = card.querySelector('.on-demand-video');
-                    if (!vid) {
-                        vid = document.createElement('video');
-                        vid.muted = true; vid.loop = true; vid.playsInline = true;
-                        vid.preload = 'auto'; vid.className = 'on-demand-video';
-                        vid.style.cssText = 'position:absolute; inset:0; width:100%; height:100%; object-fit:cover; pointer-events:none; z-index:2; opacity:0; transition:opacity 0.6s ease;';
-                        vid.src = reelSrc;
-                        cardMedia.appendChild(vid);
-                    }
+                    // Clear any pending removal or exit timeouts
+                    if (card._leaveTimeout) clearTimeout(card._leaveTimeout);
                     
-                    vid.play().then(() => { vid.style.opacity = '1'; }).catch(() => {});
-                    card._currentVid = vid;
+                    // Quick debounce (120ms)ΓöÇonly load if they stay on the card
+                    card._enterTimeout = setTimeout(() => {
+                        let vid = card.querySelector('.on-demand-video');
+                        if (!vid) {
+                            vid = document.createElement('video');
+                            vid.muted = true; vid.loop = true; vid.playsInline = true;
+                            vid.preload = 'auto'; vid.className = 'on-demand-video';
+                            vid.style.cssText = 'position:absolute; inset:0; width:100%; height:100%; object-fit:cover; pointer-events:none; z-index:2; opacity:0; transition:opacity 0.6s ease;';
+                            vid.src = reelSrc;
+                            cardMedia.appendChild(vid);
+                        }
+                        
+                        vid.play().then(() => { vid.style.opacity = '1'; }).catch(() => {});
+                        card._currentVid = vid;
+                    }, 120);
                 };
 
                 const handleMouseLeave = () => {
-                    if (cardCursor) { gsap.to(cardCursor, { scale: 0.8, duration: 0.4, ease: 'expo.out' }); }
+                    if (card._enterTimeout) clearTimeout(card._enterTimeout);
+                    if (cardCursor) { gsap.to(cardCursor, { scale: 0.8, duration: 0.4, ease: 'expo.out', overwrite: 'auto' }); }
+                    
                     if (card._currentVid) {
                         const vid = card._currentVid;
                         vid.style.opacity = '0';
-                        // Keep DOM clean by removing video after fade
-                        setTimeout(() => {
-                            if (!card._activeInReveal) { // Don't remove if we just clicked it
+                        
+                        card._leaveTimeout = setTimeout(() => {
+                            if (!card._activeInReveal) {
                                 vid.pause();
                                 vid.src = "";
                                 vid.remove();
@@ -4114,10 +4134,14 @@
                     const my = e.clientY - rect.top;
                     
                     if (cardCursor) {
-                        gsap.to(cardCursor, { x: mx, y: my, xPercent: -50, yPercent: -50, scale: 1, duration: 0.2, ease: 'power2.out', overwrite: 'auto' });
+                        // Use quicker settings for high-frequency updates
+                        gsap.set(cardCursor, { x: mx, y: my, xPercent: -50, yPercent: -50, scale: 1 });
                     }
 
-                    // Subtle parallax tilt
+                    // Optimized parallax tilt (Lower calculation frequency)
+                    if (card._lastMove && Date.now() - card._lastMove < 16) return;
+                    card._lastMove = Date.now();
+
                     const xc = rect.width / 2;
                     const yc = rect.height / 2;
                     const dx = (mx - xc) / xc;
@@ -4125,8 +4149,9 @@
                     gsap.to(cardMedia, {
                         rotateY: dx * 5,
                         rotateX: -dy * 5,
-                        duration: 0.6,
-                        ease: 'power2.out'
+                        duration: 0.5,
+                        ease: 'power2.out',
+                        overwrite: 'auto'
                     });
                 };
 
@@ -4226,72 +4251,65 @@
                         if (cardCount === 1) g.classList.add('cat-single-wrap');
                         catCountEl.innerText = cardCount + (cardCount === 1 ? ' PROJECT' : ' PROJECTS');
 
-                        // Populate Brand Logos Highlight Strip (Vibrant Manual Scroll)
+                        // Optimized Brand Logos Strip (Batching DOM updates)
                         const logoStrip = document.getElementById('cat-collage-logos-strip');
                         if (logoStrip) {
-                            logoStrip.innerHTML = '';
                             const cardLogos = Array.from(g.querySelectorAll('.card-brand-logo img:first-child'));
                             const uniqueLogoUrls = [...new Set(cardLogos.map(img => img.src))];
                             
                             if (uniqueLogoUrls.length > 0) {
-                                const mTrack = document.createElement('div');
-                                mTrack.className = 'top-marquee-track';
-                                uniqueLogoUrls.forEach(url => {
-                                    const logoImg = document.createElement('img');
-                                    logoImg.src = url;
-                                    logoImg.alt = "Client Brand";
-                                    mTrack.appendChild(logoImg);
-                                });
-                                logoStrip.appendChild(mTrack);
+                                // Memoize HTML generation
+                                const html = `<div class="top-marquee-track">${uniqueLogoUrls.map(url => `<img src="${url}" alt="Client Brand" loading="lazy">`).join('')}</div>`;
+                                logoStrip.innerHTML = html;
                                 logoStrip.style.display = 'flex';
-                                
-                                // Enable Drag-to-Scroll for 'moving right/left as we want'
-                                let isDown = false;
-                                let startX;
-                                let scrollLeft;
-                                logoStrip.addEventListener('mousedown', (e) => {
-                                    isDown = true;
-                                    startX = e.pageX - logoStrip.offsetLeft;
-                                    scrollLeft = logoStrip.scrollLeft;
-                                });
-                                logoStrip.addEventListener('mouseleave', () => { isDown = false; });
-                                logoStrip.addEventListener('mouseup', () => { isDown = false; });
-                                logoStrip.addEventListener('mousemove', (e) => {
-                                    if(!isDown) return;
-                                    e.preventDefault();
-                                    const x = e.pageX - logoStrip.offsetLeft;
-                                    const walk = (x - startX) * 2;
-                                    logoStrip.scrollLeft = scrollLeft - walk;
-                                });
                             } else {
                                 logoStrip.style.display = 'none';
                             }
                         }
 
-                        // Populate internal card marquees (Client Scroll inside card)
+                        // Batch Reset Cards (One pass)
                         g.querySelectorAll('.project-card').forEach(card => {
-                            gsap.set(card, { 
-                                clearProps: 'rotateY,rotateX,scale,filter,x,y,transform,transformOrigin,perspective,transformPerspective'
-                            });
-                            const media = card.querySelector('.card-media img, .card-media video');
-                            if (media) {
-                                gsap.set(media, { clearProps: 'x,scale,transform' });
-                            }
+                            card.style.transform = '';
+                            card.style.filter = '';
+                            card.style.opacity = '';
+                            const media = card.querySelector('.on-demand-video, .card-media img');
+                            if (media) media.style.transform = '';
                             const info = card.querySelector('.card-info');
-                            if (info) {
-                                gsap.set(info, { clearProps: 'x,transform' });
-                            }
+                            if (info) info.style.transform = '';
                         });
                     }
                 });
+
                 catChapterEl.innerText = CHAPTER_MAP[categoryName] || '';
                 catNameEl.innerText = categoryName;
+
+                // Priority: Display first, then animate.
                 catOverlay.style.display = 'block';
                 catOverlay.style.pointerEvents = 'auto';
                 catOverlay.scrollTop = 0;
-                requestAnimationFrame(() => { catOverlay.style.opacity = '1'; });
-                wireCollageCardListeners();
+                
+                requestAnimationFrame(() => { 
+                    catOverlay.style.opacity = '1';
+                    // Defer listener wiring to keep the entrance animation at 60fps
+                    setTimeout(wireCollageCardListeners, 300);
+                });
+                
                 lenis.stop();
+            }
+
+            // Move logo strip drag logic to a persistent listener (Delegation)
+            const logoStrip = document.getElementById('cat-collage-logos-strip');
+            if (logoStrip) {
+                let isDown = false, startX, scrollLeft;
+                logoStrip.addEventListener('mousedown', (e) => { isDown = true; startX = e.pageX - logoStrip.offsetLeft; scrollLeft = logoStrip.scrollLeft; });
+                logoStrip.addEventListener('mouseleave', () => { isDown = false; });
+                logoStrip.addEventListener('mouseup', () => { isDown = false; });
+                logoStrip.addEventListener('mousemove', (e) => {
+                    if(!isDown) return;
+                    e.preventDefault();
+                    const x = e.pageX - logoStrip.offsetLeft;
+                    logoStrip.scrollLeft = scrollLeft - (x - startX) * 2;
+                });
             }
 
             function closeCatCollage() {

@@ -3915,26 +3915,15 @@
                             const norm = Math.max(0, 1 - dist / (window.innerWidth * 0.5));
                             const rotationY = (xOffset / cx) * -20;
                             
-                            // High-Performance setters
-                            if (!data.qs) {
-                                data.qs = {
-                                    scale: gsap.quickSetter(data.card, "scale"),
-                                    filter: gsap.quickSetter(data.card, "filter"),
-                                    rotateY: gsap.quickSetter(data.card, "rotateY"),
-                                    mediaX: data.isProject ? gsap.quickSetter(data.media, "x") : null,
-                                    mediaScale: data.isProject ? gsap.quickSetter(data.media, "scale") : null,
-                                    infoX: data.isProject ? gsap.quickSetter(data.info, "x") : null
-                                };
-                            }
-
-                            data.qs.scale(0.85 + norm * 0.15);
-                            data.qs.filter(`brightness(${data.isProject ? 0.3 + norm * 0.7 : 0.4 + norm * 0.6})`);
-                            data.qs.rotateY(data.isProject ? rotationY : rotationY * 0.5);
+                            // High-Performance setters (Verified Cache usage)
+                            data.set.scale(0.85 + norm * 0.15);
+                            data.set.filter(`brightness(${data.isProject ? 0.3 + norm * 0.7 : 0.4 + norm * 0.6})`);
+                            data.set.rotateY(data.isProject ? rotationY : rotationY * 0.5);
                             
                             if (data.isProject) {
-                                if (data.qs.mediaX) data.qs.mediaX(xOffset * 0.15);
-                                if (data.qs.mediaScale) data.qs.mediaScale(1.3 - (norm * 0.3));
-                                if (data.qs.infoX) data.qs.infoX(xOffset * 0.08);
+                                if (data.set.mediaX) data.set.mediaX(xOffset * 0.15);
+                                if (data.set.mediaScale) data.set.mediaScale(1.3 - (norm * 0.3));
+                                if (data.set.infoX) data.set.infoX(xOffset * 0.08);
                             } else {
                                 if (cardCenter < window.innerWidth * 0.7) {
                                     currentActiveFilter = data.category;

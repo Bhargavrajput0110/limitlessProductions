@@ -2760,12 +2760,26 @@
 
     <!-- CORE LOGIC & SYSTEMS -->
     <script type="module">
-        import * as THREE from 'three';
-        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-
-        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-        import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+        // Three.js: loaded dynamically so a CDN failure never kills the rest of the site
+        let THREE = null, EffectComposer = null, RenderPass = null, UnrealBloomPass = null, ShaderPass = null;
+        let _threeLoaded = false;
+        try {
+            const [_three, _ec, _rp, _bloom, _sp] = await Promise.all([
+                import('three'),
+                import('three/addons/postprocessing/EffectComposer.js'),
+                import('three/addons/postprocessing/RenderPass.js'),
+                import('three/addons/postprocessing/UnrealBloomPass.js'),
+                import('three/addons/postprocessing/ShaderPass.js'),
+            ]);
+            THREE = _three;
+            EffectComposer = _ec.EffectComposer;
+            RenderPass = _rp.RenderPass;
+            UnrealBloomPass = _bloom.UnrealBloomPass;
+            ShaderPass = _sp.ShaderPass;
+            _threeLoaded = true;
+        } catch(e) {
+            console.warn('[LP] Three.js dynamic import failed — running without 3D background.', e);
+        }
 
         // -------------------------------------------------------------
         // CONFIG & STATE
@@ -3009,6 +3023,20 @@
             requestAnimationFrame(updateTC);
         }
         updateTC();
+
+        // -------------------------------------------------------------
+        // VOID STAGE STUB — used when Three.js fails to load
+        // -------------------------------------------------------------
+        class VoidStageStub {
+            setMood(mood) {
+                const mode = SCENE_MODES[mood];
+                if (!mode) return;
+                document.documentElement.style.setProperty('--scene-accent', mode.accent);
+                const rgb = mode.accent.replace('#','').match(/.{2}/g).map(h=>parseInt(h,16));
+                document.documentElement.style.setProperty('--scene-accent-rgb', rgb.join(', '));
+            }
+            triggerBurst() {}
+        }
 
         // -------------------------------------------------------------
         // THREE.JS VOID STAGE
@@ -4064,7 +4092,7 @@
             }
 
             // Chapter Navigation (Filter Buttons)
-            const filterBtns = document.querySelectorAll('.filter-btn');
+            // filterBtns already declared above — reuse it
             filterBtns.forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     const filter = e.target.textContent.trim().toUpperCase();
@@ -4421,7 +4449,12 @@
 
             // Init Systems
             const cursor = new CinematicCursor();
-            voidStage = new VoidStage();
+            try {
+                voidStage = _threeLoaded ? new VoidStage() : new VoidStageStub();
+            } catch(e) {
+                console.warn('[LP] VoidStage init failed, using stub:', e);
+                voidStage = new VoidStageStub();
+            }
 
             // Setup Nav Links Scramble & Routing (Unified Single Page)
             const navLinks = document.querySelectorAll('.nav-trigger');

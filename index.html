@@ -3357,21 +3357,31 @@
         // -------------------------------------------------------------
         function runPreloader() {
             return new Promise(resolve => {
-                const tl = gsap.timeline({ onComplete: resolve });
                 const countVal = document.getElementById('pre-count-val');
-                
+                const preEl = document.getElementById('preloader');
+
+                // Hard safety: always reveal landing page within 2s no matter what
+                const killswitch = setTimeout(() => {
+                    if (preEl) { preEl.style.opacity = '0'; setTimeout(() => { preEl.style.display = 'none'; }, 400); }
+                    resolve();
+                }, 2000);
+
                 let counter = { val: 0 };
-                
+                const tl = gsap.timeline({
+                    onComplete: () => { clearTimeout(killswitch); resolve(); }
+                });
+
+                // Fast decorative count 000 -> 100 (0.8s)
                 tl.to(counter, {
                     val: 100,
-                    duration: 2.5,
-                    ease: "power2.inOut",
+                    duration: 0.8,
+                    ease: 'power3.inOut',
                     onUpdate: () => {
                         const v = Math.floor(counter.val);
-                        if(countVal) countVal.innerText = v.toString().padStart(3, '0');
+                        if (countVal) countVal.innerText = v.toString().padStart(3, '0');
                     }
                 })
-                .to('#preloader', { opacity: 0, duration: 1.2, ease: 'power2.inOut' })
+                .to('#preloader', { opacity: 0, duration: 0.4, ease: 'power2.in' })
                 .set('#preloader', { display: 'none' });
             });
         }

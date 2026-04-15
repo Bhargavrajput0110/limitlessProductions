@@ -3,7 +3,7 @@
 // Implements caching for improved performance and offline support
 // ============================================================================
 
-const CACHE_VERSION = 'limitless-v1.0.0';
+const CACHE_VERSION = 'limitless-v2.0.0';
 const CACHE_NAMES = {
     static: `${CACHE_VERSION}-static`,
     images: `${CACHE_VERSION}-images`,

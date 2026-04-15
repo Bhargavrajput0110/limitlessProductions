@@ -2735,6 +2735,29 @@
     </div>
 
 
+    <!-- GLOBAL PRELOADER KILLSWITCH (outside module - always runs) -->
+    <script>
+        // This script is NOT a module - it runs regardless of import errors.
+        // It guarantees the preloader ALWAYS hides within 3.5 seconds.
+        (function() {
+            function forceReveal() {
+                var pre = document.getElementById('preloader');
+                if (pre && pre.style.display !== 'none') {
+                    pre.style.transition = 'opacity 0.5s ease';
+                    pre.style.opacity = '0';
+                    setTimeout(function() { pre.style.display = 'none'; }, 500);
+                }
+            }
+            // Fire at 3.5s no matter what
+            setTimeout(forceReveal, 3500);
+            // Also listen for DOMContentLoaded in case module succeeds quickly
+            document.addEventListener('DOMContentLoaded', function() {
+                // If module hasn't resolved in 3s after DOM, force reveal
+                setTimeout(forceReveal, 3000);
+            });
+        })();
+    </script>
+
     <!-- CORE LOGIC & SYSTEMS -->
     <script type="module">
         import * as THREE from 'three';
